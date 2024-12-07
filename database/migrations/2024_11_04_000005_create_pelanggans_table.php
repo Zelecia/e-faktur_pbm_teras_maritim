@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
 
             $table->string('npwp', 25)->unique();
+            $table->string('nitku', 25)->unique();
             $table->string('nama', 45);
             $table->text('alamat')->nullable();
             $table->string('nomor_telepon', 15)->nullable();
