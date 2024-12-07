@@ -19,6 +19,8 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Support\RawJs;
 use Filament\Tables;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -107,6 +109,22 @@ class FakturResource extends Resource
                     ->preload()
                     ->native(false)
                     ->searchable()
+                    ->columnSpanFull()
+                    ->reactive()
+                    ->afterStateUpdated(function (callable $set, $state) {
+                        // Ambil subtotal dari BarangJasa berdasarkan referensi_id yang dipilih
+                        $subtotal = BarangJasa::where('id', $state)->value('subtotal');
+
+                        if ($subtotal !== null) {
+                            // Format subtotal sesuai dengan input mask (contoh: "1,000,000")
+                            $formattedTotal = number_format($subtotal, 0, ',', ',');
+                            // Set nilai dpp dengan format
+                            $set('dpp', $formattedTotal);
+                        } else {
+                            // Jika tidak ada subtotal, kosongkan nilai dpp
+                            $set('dpp', null);
+                        }
+                    })
                     ->required(),
 
                 DatePicker::make('tanggal')
@@ -143,8 +161,11 @@ class FakturResource extends Resource
                     ->mask(RawJs::make('$money($input)'))
                     ->stripCharacters(',')
                     ->prefix('Rp')
-                    ->numeric()
+                    ->suffix('.00')
                     ->minValue(1)
+                    ->numeric()
+                    ->disabled()
+                    ->dehydrated()
                     ->required(),
 
                 TextInput::make('ppn')
@@ -152,7 +173,7 @@ class FakturResource extends Resource
                     ->placeholder('Masukkan Pajak Pertambahan Nilai (PPN)')
                     ->suffix('%')
                     ->numeric()
-                    ->minValue(1)
+                    ->minValue(0)
                     ->required(),
 
                 Select::make('status')
@@ -207,11 +228,11 @@ class FakturResource extends Resource
                     ->description(fn(Faktur $record): string => Carbon::parse($record->tanggal)->translatedFormat('D, d/m/Y'))
                     ->searchable(),
 
-                TextColumn::make('dpp')
+                TextColumn::make('referensi.subtotal')
                     ->label('DPP & PPN')
                     ->formatStateUsing(function (Faktur $record): string {
-                        $dpp = $record->dpp ? 'Rp' . number_format($record->dpp, 2, ',', '.') : 'DPP Belum Diisi';
-                        $ppn = $record->ppn ? "{$record->ppn}%" : 'PPN Belum Diisi';
+                        $dpp = $record->referensi->subtotal ? 'Rp' . number_format($record->referensi->subtotal, 2, ',', '.') : 'DPP Belum Diisi';
+                        $ppn = $record->ppn ? "{$record->ppn}%" : '0%';
                         return "{$dpp} / {$ppn}";
                     })
                     ->description(function (Faktur $record): string {
@@ -255,8 +276,15 @@ class FakturResource extends Resource
                     ->native(false),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Action::make('cetak')
+                    ->label('Cetak')
+                    ->url(fn(Faktur $record): string => route('faktur.pdf', $record))
+                    ->openUrlInNewTab()
+                    ->button(),
+                ActionGroup::make([
+                    Tables\Actions\EditAction::make(),
+                    Tables\Actions\DeleteAction::make(),
+                ])->color('info')
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

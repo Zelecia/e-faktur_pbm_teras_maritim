@@ -6,7 +6,6 @@ use App\Filament\Resources\UserResource\Pages;
 use App\Filament\Resources\UserResource\RelationManagers;
 use App\Models\User;
 use Filament\Actions\CreateAction;
-use Filament\Actions\EditAction;
 use Filament\Forms;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\Section;
@@ -15,6 +14,10 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\ActionGroup;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -77,25 +80,16 @@ class UserResource extends Resource
                     ->preload()
                     ->searchable(),
 
-                Fieldset::make('Data Password')
-                    ->schema([
-                        TextInput::make('password')
-                            ->label('Password Pengguna')
-                            ->placeholder('Masukkan Password Pengguna')
-                            ->minLength(8)
-                            ->password()
-                            ->confirmed()
-                            ->revealable()
-                            ->required(fn($livewire) => $livewire instanceof CreateAction),
-
-                        TextInput::make('password_confirmation')
-                            ->label('Konfirmasi Password Pengguna')
-                            ->placeholder('Masukkan Konfirmasi Password Pengguna')
-                            ->minLength(8)
-                            ->password()
-                            ->revealable()
-                            ->required(fn($livewire) => $livewire instanceof CreateAction),
-                    ])
+                TextInput::make('password')
+                    ->label(fn($context) => $context === 'create' ? 'Password Pengguna' : 'Ubah Password')
+                    ->placeholder(fn($context) => $context === 'create' ? 'Masukkan Password Pengguna' : 'Kosongkan jika tidak ingin mengubah password')
+                    ->password()
+                    ->required(fn(string $context) => $context === 'create')
+                    ->minLength(8)
+                    ->maxLength(255)
+                    ->revealable()
+                    ->dehydrateStateUsing(fn($state) => $state ? bcrypt($state) : null)
+                    ->dehydrated(fn($state) => filled($state)),
             ]);
     }
 
@@ -115,30 +109,27 @@ class UserResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make()
-                    ->using(function (Model $record, array $data): Model {
-                        // Only hash and update the password if it's not empty
-                        if (!empty($data['password'])) {
-                            $data['password'] = Hash::make($data['password']);
-                        } else {
-                            unset($data['password']); // Remove password if not provided
-                        }
+                ActionGroup::make([
+                    ViewAction::make(),
+                    EditAction::make(),
+                    DeleteAction::make()
+                        ->authorize(function ($record) {
+                            // Pastikan bahwa user tidak bisa menghapus dirinya sendiri
+                            return Auth::id() !== $record->id;
+                        })
+                        ->using(function ($record) {
+                            if ($record->id === Auth::id()) {
+                                session()->flash('error', 'You cannot delete your own account.');
+                                return false; // Prevent deletion
+                            }
 
-                        // Update the record with the modified data
-                        $record->update($data);
-
-                        return $record;
-                    }),
-                Tables\Actions\DeleteAction::make()
-                    ->using(function ($record) {
-                        if ($record->id === Auth::id()) {
-                            session()->flash('error', 'You cannot delete your own account.');
-                            return false; // Prevent deletion
-                        }
-
-                        $record->delete(); // Proceed with deletion
-                    })
-                    ->requiresConfirmation(),
+                            $record->delete(); // Proceed with deletion
+                        })
+                        ->requiresConfirmation(),
+                ])
+                    ->icon('heroicon-m-ellipsis-horizontal')
+                    ->color('info')
+                    ->tooltip('Aksi')
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
