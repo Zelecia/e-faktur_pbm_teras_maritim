@@ -10,6 +10,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
+use Filament\Support\RawJs;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -47,6 +48,13 @@ class PelangganResource extends Resource
                     ->unique(ignoreRecord: true)
                     ->required(),
 
+                TextInput::make('nitku')
+                    ->label('Nomor NITKU')
+                    ->placeholder('Masukkan Nomor NITKU')
+                    ->maxLength(25)
+                    ->unique(ignoreRecord: true)
+                    ->required(),
+
                 TextInput::make('nama')
                     ->label('Nama Pelanggan')
                     ->placeholder('Masukkan Nama Pelanggan')
@@ -62,9 +70,33 @@ class PelangganResource extends Resource
                 TextInput::make('nomor_telepon')
                     ->label('Nomor Telepon')
                     ->placeholder('Masukkan Nomor Telepon Pelanggan')
-                    ->prefix('ID') // Hanya sebagai petunjuk awal, tidak menyimpan
+                    ->prefix('+62')
                     ->tel()
-                    ->telRegex('/^((\+62\s?)|08|8)\d{1,2}\s?\d{3,4}\s?\d{3,4}$/')
+                    ->mask(
+                        RawJs::make(<<<'JS'
+                            $input.startsWith('+62')
+                                ? $input.replace(/^\+62/, '')
+                                : ($input.startsWith('62')
+                                    ? $input.replace(/^62/, '')
+                                    : ($input.startsWith('0')
+                                        ? $input.replace(/^0/, '')
+                                        : $input
+                                    )
+                                )
+                        JS)
+                    )
+                    ->stripCharacters([' ', '-', '(', ')'])
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        // Bersihkan prefix dari input
+                        $cleaned = preg_replace('/^(\+62|62|0)/', '', $state);
+
+                        // Pastikan input dimulai dengan angka 8
+                        if (!str_starts_with($cleaned, '8')) {
+                            $set('no_hp', null); // Atur ke null jika tidak valid
+                        } else {
+                            $set('no_hp', $cleaned); // Simpan nomor bersih tanpa prefix
+                        }
+                    })
                     ->maxLength(15)
                     ->minLength(10)
                     ->nullable(),
@@ -72,7 +104,7 @@ class PelangganResource extends Resource
                 Textarea::make('alamat')
                     ->label('Alamat Pelanggan')
                     ->placeholder('Masukkan Alamat Pelanggan')
-                    ->rows(2)
+                    ->rows(1)
                     ->minLength(8)
                     ->autosize(),
             ]);
@@ -83,7 +115,11 @@ class PelangganResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('npwp')
-                    ->label('Nomor NPWP')
+                    ->label('NPWP')
+                    ->searchable(),
+
+                TextColumn::make('nitku')
+                    ->label('NITKU')
                     ->searchable(),
 
                 TextColumn::make('nama')

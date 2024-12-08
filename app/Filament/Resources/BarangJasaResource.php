@@ -10,6 +10,7 @@ use Closure;
 use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Fieldset;
+use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -17,6 +18,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Support\RawJs;
 use Filament\Tables;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Model;
 use Filament\Tables\Table;
@@ -114,39 +116,43 @@ class BarangJasaResource extends Resource
                     ->mask(RawJs::make('$money($input)'))
                     ->stripCharacters(',')
                     ->numeric()
+                    ->hidden()
+                    ->dehydratedWhenHidden()
                     ->placeholder('Data Akan Otomatis Terisi Jika Sudah Disimpan')
                     ->prefix('IDR'),
 
                 Repeater::make('Uraian Barang')
                     ->relationship('uraianBarang') // Ensure the relationship is correctly defined in the model
                     ->schema([
-                        TextInput::make('nama')
-                            ->label('Nama Barang')
-                            ->placeholder('Masukkan Nama Barang')
-                            ->minLength(5)
-                            ->maxLength(45)
-                            ->required(),
+                        Grid::make(3)
+                            ->schema([
+                                TextInput::make('nama')
+                                    ->label('Nama Barang')
+                                    ->placeholder('Masukkan Nama Barang')
+                                    ->minLength(5)
+                                    ->maxLength(45)
+                                    ->required(),
 
-                        TextInput::make('kuantitas')
-                            ->label('Kuantitas')
-                            ->placeholder('Masukkan Kuantitas')
-                            ->numeric()
-                            ->minValue(1)
-                            ->required(),
+                                TextInput::make('kuantitas')
+                                    ->label('Kuantitas')
+                                    ->placeholder('Masukkan Kuantitas')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required(),
 
-                        TextInput::make('harga_per_unit')
-                            ->label('Harga / Unit')
-                            ->placeholder('Masukkan Harga Per Unit')
-                            ->mask(RawJs::make('$money($input)'))
-                            ->stripCharacters(',')
-                            ->numeric()
-                            ->prefix('Rp')
-                            ->Suffix('.00')
-                            ->minValue(1)
-                            ->columnSpan('full')
-                            ->required(),
+                                TextInput::make('harga_per_unit')
+                                    ->label('Harga / Unit')
+                                    ->placeholder('Masukkan Harga')
+                                    ->mask(RawJs::make('$money($input)'))
+                                    ->stripCharacters(',')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->Suffix('.00')
+                                    ->minValue(1)
+                                    ->required(),
+                            ]),
                     ])
-                    ->columns(2)
+                    ->columnSpanFull()
                     ->required(),
             ]);
     }
@@ -194,7 +200,9 @@ class BarangJasaResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                ActionGroup::make([
+                    Tables\Actions\DeleteAction::make(),
+                ])->color('info')
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

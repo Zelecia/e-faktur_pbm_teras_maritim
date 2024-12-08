@@ -14,6 +14,7 @@ class Pelanggan extends Model
 
     protected $fillable = [
         'npwp',
+        'nitku',
         'nama',
         'alamat',
         'nomor_telepon',
